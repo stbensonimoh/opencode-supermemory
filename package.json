@@ -5,12 +5,22 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./v2": {
+      "types": "./dist/v2/index.d.ts",
+      "import": "./dist/v2/index.js"
+    }
+  },
   "bin": {
     "opencode-supermemory": "./dist/cli.js"
   },
   "scripts": {
     "generate:version": "node scripts/sync-version.mjs",
-    "build": "node scripts/sync-version.mjs && bun build ./src/index.ts --outdir ./dist --target node && bun build ./src/cli.ts --outfile ./dist/cli.js --target node && tsc --emitDeclarationOnly",
+    "build": "node scripts/sync-version.mjs && bun build ./src/index.ts --outdir ./dist --target node && bun build ./src/v2/index.ts --outdir ./dist/v2 --target node --external @opencode-ai/plugin-v2 && bun build ./src/cli.ts --outfile ./dist/cli.js --target node && tsc --emitDeclarationOnly",
     "dev": "tsc --watch",
     "typecheck": "node scripts/sync-version.mjs && tsc --noEmit",
     "test": "node scripts/sync-version.mjs && bun test"
@@ -31,9 +41,13 @@
   },
   "devDependencies": {
     "@opencode-ai/plugin": "^1.0.162",
+    "@opencode-ai/plugin-v2": "npm:@opencode-ai/plugin@0.0.0-beta-17728",
     "@types/bun": "latest",
     "supermemory": "^4.0.0",
     "typescript": "^5.7.3"
+  },
+  "peerDependencies": {
+    "@opencode-ai/plugin-v2": "0.0.0-beta-17728"
   },
   "opencode": {
     "type": "plugin",
