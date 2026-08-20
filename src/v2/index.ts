@@ -14,7 +14,7 @@ import {
 } from "../services/capture.js";
 import { supermemoryClient } from "../services/client.js";
 import { formatContextForPrompt } from "../services/context.js";
-import { detectMemoryKeyword, MEMORY_NUDGE_MESSAGE } from "../services/injection.js";
+import { detectMemoryKeyword, matchesRecallHeuristic, MEMORY_NUDGE_MESSAGE } from "../services/injection.js";
 import { log } from "../services/logger.js";
 import { buildRecallDirective } from "../services/recall.js";
 import { getTags, type ResolvedTags } from "../services/tags.js";
@@ -96,12 +96,61 @@ export default Plugin.define({
         (part) => typeof part.text === "string" && part.text.includes(marker),
       );
 
-    const buildFirstMessageContext = async (
+    const buildMemoryContext = async (
       sessionID: string,
       userMessage: string,
     ): Promise<string> => {
       const tags = getTags(sessionDirs.get(sessionID) ?? process.cwd());
 
+      const [profileResult, userMemoriesResult, projectMemoriesListResult] =
+        await Promise.all([
+          supermemoryClient.getProfileScoped(
+            tags.canonical,
+            tags.personalReads,
+            "personal",
+            userMessage,
+          ),
+          supermemoryClient.searchMemoriesScoped(
+            userMessage,
+            tags.canonical,
+            tags.personalReads,
+            "personal",
+          ),
+          supermemoryClient.listMemoriesScoped(
+            tags.canonical,
+            tags.projectReads,
+            "project",
+            CONFIG.maxProjectMemories,
+          ),
+        ]);
+
+      const profile = profileResult.success ? profileResult : null;
+      const userMemories = userMemoriesResult.success
+        ? userMemoriesResult
+        : { results: [] };
+      const projectMemoriesList = projectMemoriesListResult.success
+        ? projectMemoriesListResult
+        : { memories: [] };
+
+      const projectMemories = {
+        results: (projectMemoriesList.memories || []).map((m: any) => ({
+          id: m.id,
+          memory: m.summary || m.content || m.title || "",
+          similarity: 1,
+          title: m.title,
+          metadata: m.metadata,
+        })),
+        total: projectMemoriesList.memories?.length || 0,
+        timing: 0,
+      };
+
+      return formatContextForPrompt(profile, userMemories, projectMemories);
+    };
+
+    const buildFirstMessageContext = async (
+      sessionID: string,
+      userMessage: string,
+    ): Promise<string> => {
       const updateCheck = checkNpmUpdate(
         "opencode-supermemory",
         PLUGIN_VERSION,
@@ -110,54 +159,9 @@ export default Plugin.define({
 
       let memoryContext = "";
       if (CONFIG.autoRecallEveryPrompt) {
-        const [profileResult, userMemoriesResult, projectMemoriesListResult] =
-          await Promise.all([
-            supermemoryClient.getProfileScoped(
-              tags.canonical,
-              tags.personalReads,
-              "personal",
-              userMessage,
-            ),
-            supermemoryClient.searchMemoriesScoped(
-              userMessage,
-              tags.canonical,
-              tags.personalReads,
-              "personal",
-            ),
-            supermemoryClient.listMemoriesScoped(
-              tags.canonical,
-              tags.projectReads,
-              "project",
-              CONFIG.maxProjectMemories,
-            ),
-          ]);
-
-        const profile = profileResult.success ? profileResult : null;
-        const userMemories = userMemoriesResult.success
-          ? userMemoriesResult
-          : { results: [] };
-        const projectMemoriesList = projectMemoriesListResult.success
-          ? projectMemoriesListResult
-          : { memories: [] };
-
-        const projectMemories = {
-          results: (projectMemoriesList.memories || []).map((m: any) => ({
-            id: m.id,
-            memory: m.summary || m.content || m.title || "",
-            similarity: 1,
-            title: m.title,
-            metadata: m.metadata,
-          })),
-          total: projectMemoriesList.memories?.length || 0,
-          timing: 0,
-        };
-
-        memoryContext = formatContextForPrompt(
-          profile,
-          userMemories,
-          projectMemories,
-        );
+        memoryContext = await buildMemoryContext(sessionID, userMessage);
       } else {
+        const tags = getTags(sessionDirs.get(sessionID) ?? process.cwd());
         const profileResult = await supermemoryClient.getProfileScoped(
           tags.canonical,
           tags.personalReads,
@@ -169,6 +173,22 @@ export default Plugin.define({
 
       const updateNotice = await updateCheck;
       return [memoryContext, updateNotice].filter(Boolean).join("\n\n");
+    };
+
+    // Replaces any system part carrying the marker with the fresh block, so
+    // repeated injections across dispatches never accumulate duplicates.
+    const refreshSystemBlock = (
+      system: V2ContentPart[],
+      marker: string,
+      text: string,
+    ) => {
+      for (let index = system.length - 1; index >= 0; index -= 1) {
+        const part = system[index];
+        if (typeof part?.text === "string" && part.text.includes(marker)) {
+          system.splice(index, 1);
+        }
+      }
+      system.push({ type: "text", text });
     };
 
     const saveBatch = async (
@@ -314,9 +334,22 @@ export default Plugin.define({
           injectedSessions.add(sessionID);
           const contextText = await buildFirstMessageContext(sessionID, text);
           if (contextText) {
-            const already = hasTextMarker(system, "[SUPERMEMORY]");
-            if (!already) system.push({ type: "text", text: contextText });
-            debug(`context injected: ${contextText.length} chars`);
+            refreshSystemBlock(system, "[SUPERMEMORY]", contextText);
+            debug(`first-message context injected: ${contextText.length} chars`);
+          }
+        } else {
+          // Conditioned recall: search memories for this message only when it
+          // looks context-dependent, and refresh the injected block. Keeps
+          // recall reliable without an API call on every trivial message.
+          const shouldRecall =
+            CONFIG.autoRecallEveryPrompt ||
+            (CONFIG.conditionedRecall && matchesRecallHeuristic(text));
+          if (shouldRecall) {
+            const contextText = await buildMemoryContext(sessionID, text);
+            if (contextText) {
+              refreshSystemBlock(system, "[SUPERMEMORY]", contextText);
+              debug(`conditioned recall injected: ${contextText.length} chars`);
+            }
           }
         }
       } catch (error) {

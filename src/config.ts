@@ -29,6 +29,7 @@ interface SupermemoryConfig {
   compactionThreshold?: number;
   autoRecallEveryPrompt?: boolean;
   captureEveryNTurns?: number;
+  conditionedRecall?: boolean;
   recallDirective?: string | null;
 }
 
@@ -63,6 +64,7 @@ const DEFAULTS: Required<Omit<SupermemoryConfig, "apiKey" | "baseUrl" | "userCon
   compactionThreshold: 0.80,
   autoRecallEveryPrompt: false,
   captureEveryNTurns: 0,
+  conditionedRecall: false,
 };
 
 function isValidRegex(pattern: string): boolean {
@@ -177,6 +179,7 @@ export const CONFIG = {
     configExisted ? 3 : DEFAULTS.captureEveryNTurns,
   ),
   recallDirective: fileConfig.recallDirective ?? null,
+  conditionedRecall: fileConfig.conditionedRecall ?? DEFAULTS.conditionedRecall,
 };
 
 export function isConfigured(): boolean {
