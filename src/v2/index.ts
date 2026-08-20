@@ -281,6 +281,17 @@ export default Plugin.define({
 
       if (!isConfigured()) return;
 
+      // V2 message parts have no hidden/synthetic flag, so anything pushed
+      // into a message shows up in the conversation UI. Persistent guidance
+      // therefore goes into the system prompt, which the model sees but the
+      // UI never renders. Marker checks dedupe across dispatches and across
+      // the two plugin instances the beta server loads.
+      const system = event.system as unknown as V2ContentPart[];
+
+      if (!hasTextMarker(system, "<supermemory-recall>")) {
+        system.push({ type: "text", text: buildRecallDirective() });
+      }
+
       const userMsg = lastUserMessage(messages);
       if (!userMsg) return;
       const content = (userMsg.content ??= []);
@@ -291,21 +302,20 @@ export default Plugin.define({
       if (injectedMessages.has(fingerprint)) return;
       // The beta server double-loads plugin entries. The second instance sees
       // the marker text the first instance already pushed and skips.
-      if (hasTextMarker(content, "<supermemory-recall>")) return;
+      if (hasTextMarker(content, "[MEMORY TRIGGER DETECTED]")) return;
       injectedMessages.add(fingerprint);
 
       try {
         if (detectMemoryKeyword(text)) {
           content.push({ type: "text", text: MEMORY_NUDGE_MESSAGE });
         }
-        content.push({ type: "text", text: buildRecallDirective() });
 
         if (!injectedSessions.has(sessionID)) {
           injectedSessions.add(sessionID);
           const contextText = await buildFirstMessageContext(sessionID, text);
           if (contextText) {
-            const already = hasTextMarker(content, "[SUPERMEMORY]");
-            if (!already) content.unshift({ type: "text", text: contextText });
+            const already = hasTextMarker(system, "[SUPERMEMORY]");
+            if (!already) system.push({ type: "text", text: contextText });
             debug(`context injected: ${contextText.length} chars`);
           }
         }
