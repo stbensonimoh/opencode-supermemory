@@ -12,7 +12,7 @@ import {
   type CaptureTurn,
   type SessionMessage,
 } from "../services/capture.js";
-import { supermemoryClient } from "../services/client.js";
+import { supermemoryClient } from "../services/local-store.js";
 import { formatContextForPrompt } from "../services/context.js";
 import { detectMemoryKeyword, matchesRecallHeuristic, MEMORY_NUDGE_MESSAGE } from "../services/injection.js";
 import { log } from "../services/logger.js";

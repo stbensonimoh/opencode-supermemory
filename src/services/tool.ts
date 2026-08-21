@@ -1,5 +1,5 @@
 import { AGENT_ENTITY_CONTEXT } from "./entity-context.js";
-import { supermemoryClient } from "./client.js";
+import { supermemoryClient } from "./local-store.js";
 import { isFullyPrivate, stripPrivateContent } from "./privacy.js";
 import type { ResolvedTags } from "./tags.js";
 import type { MemoryScope, MemoryType } from "../types/index.js";

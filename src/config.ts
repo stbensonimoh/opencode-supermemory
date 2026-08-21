@@ -31,6 +31,7 @@ interface SupermemoryConfig {
   captureEveryNTurns?: number;
   conditionedRecall?: boolean;
   recallDirective?: string | null;
+  storageBackend?: "local" | "supermemory";
 }
 
 const DEFAULT_KEYWORD_PATTERNS = [
@@ -65,6 +66,7 @@ const DEFAULTS: Required<Omit<SupermemoryConfig, "apiKey" | "baseUrl" | "userCon
   autoRecallEveryPrompt: true,
   captureEveryNTurns: 0,
   conditionedRecall: true,
+  storageBackend: "local",
 };
 
 function isValidRegex(pattern: string): boolean {
@@ -180,10 +182,13 @@ export const CONFIG = {
   ),
   recallDirective: fileConfig.recallDirective ?? null,
   conditionedRecall: fileConfig.conditionedRecall ?? DEFAULTS.conditionedRecall,
+  storageBackend: fileConfig.storageBackend ?? DEFAULTS.storageBackend,
 };
 
 export function isConfigured(): boolean {
-  return !!SUPERMEMORY_API_KEY;
+  // Local memory mode needs no API key: configured whenever the store is
+  // usable. The cloud path (SUPERMEMORY_API_KEY) remains supported.
+  return !!SUPERMEMORY_API_KEY || CONFIG.storageBackend === "local";
 }
 
 export function getRecallConfig(): { directive: string | null } {
