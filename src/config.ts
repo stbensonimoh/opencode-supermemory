@@ -62,9 +62,9 @@ const DEFAULTS: Required<Omit<SupermemoryConfig, "apiKey" | "baseUrl" | "userCon
   filterPrompt: "You are a stateful coding agent. Remember all the information, including but not limited to user's coding preferences, tech stack, behaviours, workflows, and any other relevant details.",
   keywordPatterns: [],
   compactionThreshold: 0.80,
-  autoRecallEveryPrompt: false,
+  autoRecallEveryPrompt: true,
   captureEveryNTurns: 0,
-  conditionedRecall: false,
+  conditionedRecall: true,
 };
 
 function isValidRegex(pattern: string): boolean {
@@ -197,8 +197,8 @@ export function writeInstallDefaults(isExistingInstall: boolean): void {
     if (next.autoRecallEveryPrompt === undefined) next.autoRecallEveryPrompt = true;
     if (next.captureEveryNTurns === undefined) next.captureEveryNTurns = 3;
   } else {
-    next.autoRecallEveryPrompt = false;
-    next.captureEveryNTurns = 0;
+    next.autoRecallEveryPrompt = true;
+    next.captureEveryNTurns = 3;
   }
   writeFileSync(DEFAULT_CONFIG_FILE, JSON.stringify(next, null, 2));
 }

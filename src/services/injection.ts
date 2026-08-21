@@ -28,9 +28,8 @@ export function detectMemoryKeyword(text: string): boolean {
 }
 
 // Patterns that suggest the current message depends on context from earlier
-// sessions: references to past work, decisions, conventions, or preferences.
-// Mirrors the guidance in the recall directive. Deliberately conservative,
-// so trivial or self-contained messages skip the recall API call.
+// sessions: references to past work, decisions, conventions, preferences, or
+// ordinary questions whose answers likely live in saved memory.
 const RECALL_TRIGGER_PATTERN = new RegExp(
   [
     "like (we|you) did",
@@ -51,6 +50,24 @@ const RECALL_TRIGGER_PATTERN = new RegExp(
     "we (discussed|agreed|decided|talked)",
     "previous (conversation|session|decision|version)",
     "from (the|our) (last|previous)",
+    // Ordinary question phrasing that depends on prior context or stored
+    // knowledge. These are common ways people ask about past work without
+    // using the explicit keywords above.
+    "i have a (question|problem) (about|with)",
+    "i wrote a .* for it",
+    "it (seems|feels) (useless|broken|wrong|slow)",
+    "don't (seem|seems) to .{0,40}(recall|remember|work)",
+    "doesn't (seem|seems) to .{0,40}(recall|remember|work)",
+    "can't (seem to|remember|recall)",
+    "new .* (doesn't|don't) .{0,40}(properly|correctly|automatically)",
+    "how .* (it|this|that|they) (work|works)",
+    "what .* (the|is) (problem|issue|status|state)",
+    "why .* (not|doesn't|does it)",
+    "is there (a|an|any) .* about",
+    "did (i|we|you) (write|make|set up|create)",
+    "what (did|do) (i|we) (do|use|have) (for|with)",
+    "have (i|we|you) (talked|worked|dealt) (about|with)",
+    "something (about|with|from) (earlier|before|last)",
   ].join("|"),
   "i",
 );
